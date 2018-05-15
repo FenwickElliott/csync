@@ -13,12 +13,16 @@ import (
 )
 
 var (
-	db      *mgo.Database
-	service Service
+	db           *mgo.Database
+	c            *mgo.Collection
+	err          error
+	service      Service
+	nativeCookie http.Cookie
 )
 
 type association struct {
 	NativeCookie  string
+	Partner       string
 	PartnerCookie string
 }
 
@@ -31,7 +35,8 @@ type Service struct {
 }
 
 // Serve opens the service
-func Serve(service Service) error {
+func Serve(serviceVars Service) error {
+	service = serviceVars
 	if service.Name == "" {
 		return errors.New("A service name must be provided")
 	}
@@ -43,6 +48,7 @@ func Serve(service Service) error {
 	check(err)
 	defer session.Close()
 	db = session.DB(service.Name)
+	c = session.DB(service.Name).C("master")
 
 	http.HandleFunc("/in", in)
 	fmt.Println("Serving on port:", service.Port)
@@ -51,8 +57,9 @@ func Serve(service Service) error {
 
 func in(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
-	partnerID := r.FormValue("partner")
-	partnerCookie := r.FormValue("cookieID")
+	partner := r.FormValue("partner")
+	partnerCookie := r.FormValue("cookie")
+	// fmt.Println(partner, partnerCookie)
 
 	nativeCookie, err := r.Cookie(service.Name + "ID")
 	if nativeCookie == nil {
@@ -60,21 +67,25 @@ func in(w http.ResponseWriter, r *http.Request) {
 	} else {
 		check(err)
 	}
-
-	res := association{}
-	c := db.C(partnerID)
-	err = c.Find(bson.M{service.Name + "id": nativeCookie.Value}).One(&res)
-	if err != nil {
-		c.Insert(association{nativeCookie.Value, partnerCookie})
-		err = c.Find(bson.M{service.Name + "id": nativeCookie.Value}).One(&res)
-	}
+	err = insert(nativeCookie.Value, partner, partnerCookie)
 	check(err)
-	if res.PartnerCookie != partnerCookie {
-		panic("partnerCookie doesn't match")
+}
+
+func insert(nativeID, partner, partnerCookie string) error {
+	var res bson.M
+
+	err = c.Find(bson.M{"_id": nativeID, partner: partnerCookie}).One(&res)
+	if err == nil {
+		return err
 	}
 
-	// implement redirect
-	http.Redirect(w, r, service.Redirect+"/in?partner="+service.Name+"&cookieID="+nativeCookie.Value, 307)
+	err = c.FindId(nativeID).One(&res)
+	if err == nil {
+		err = c.UpdateId(nativeID, bson.M{"$set": bson.M{partner: partnerCookie}})
+	} else if err.Error() == "not found" {
+		err = c.Insert(bson.M{"_id": nativeID, partner: partnerCookie})
+	}
+	return err
 }
 
 func check(err error) {
