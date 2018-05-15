@@ -21,8 +21,6 @@ func getPartners() map[string]partner {
 		for i := 3; i < len(line); i++ {
 			scope = append(scope, line[i])
 		}
-		// p := partner{line[0], line[1], line[2], scope}
-		// partners[line[0]] = p
 		partners[line[0]] = partner{line[0], line[1], line[2], scope}
 	}
 	return partners
