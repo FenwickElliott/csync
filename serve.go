@@ -51,6 +51,8 @@ func Serve(serviceVars Service) error {
 	c = session.DB(service.Name).C("master")
 
 	http.HandleFunc("/in", in)
+	// http.HandleFunc("/forward", forward)
+	// http.HandleFunc("/back", back)
 	fmt.Println("Serving on port:", service.Port)
 	return http.ListenAndServe(":"+service.Port, nil)
 }
@@ -83,8 +85,14 @@ func insert(nativeID, partner, partnerCookie string) error {
 	if err == nil {
 		err = c.UpdateId(nativeID, bson.M{"$set": bson.M{partner: partnerCookie}})
 	} else if err.Error() == "not found" {
+		// Check for partnerCookie
+		err = c.Find(bson.M{partner: partnerCookie}).One(&res)
+		if err == nil {
+			// set original cookie
+		}
 		err = c.Insert(bson.M{"_id": nativeID, partner: partnerCookie})
 	}
+	err = c.Find(bson.M{"_id": nativeID, partner: partnerCookie}).One(&res)
 	return err
 }
 
