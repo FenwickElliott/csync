@@ -54,8 +54,8 @@ func Serve(serviceVars Service) error {
 
 	http.HandleFunc("/in", in)
 	http.HandleFunc("/forward", forward)
-	// http.HandleFunc("/back", back)
-	fmt.Println("Serving on port:", service.Port)
+	http.HandleFunc("/back", back)
+	fmt.Println("Serving:", service.Name, "on port:", service.Port)
 	return http.ListenAndServe(":"+service.Port, nil)
 }
 
@@ -104,12 +104,28 @@ func forward(w http.ResponseWriter, r *http.Request) {
 		check(err)
 	}
 	for _, c := range r.Cookies() {
-		fmt.Println(c.Name, c.Value)
 		err = insert(nativeCookie.Value, c.Name, c.Value)
 		check(err)
 	}
-	// str := partners[r.FormValue("back").Address] + "/back?" + service.Name + "=" + nativeCookie.Value
-	// http.Redirect(w, r, str, 307)
+
+	str := partners[r.FormValue("back")].Address + "/back?partner=" + service.Name + "&cookie=" + nativeCookie.Value
+	http.Redirect(w, r, str, 307)
+}
+
+func back(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("called back")
+	r.ParseForm()
+	partner := r.FormValue("partner")
+	partnerCookie := r.FormValue("cookie")
+
+	nativeCookie, err := r.Cookie(service.Name + "ID")
+	if nativeCookie == nil {
+		nativeCookie = setCookie(&w, r, "new")
+	} else {
+		check(err)
+	}
+	err = insert(nativeCookie.Value, partner, partnerCookie)
+	check(err)
 }
 
 func insert(nativeID, partner, partnerCookie string) error {
