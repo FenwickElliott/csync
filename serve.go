@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"gopkg.in/mgo.v2"
@@ -17,12 +18,14 @@ var (
 	err          error
 	service      Service
 	nativeCookie http.Cookie
+	partners     map[string]partner
 )
 
-type association struct {
-	NativeCookie  string
-	Partner       string
-	PartnerCookie string
+type partner struct {
+	Name       string
+	AuthHeader string
+	Address    string
+	Scope      []string
 }
 
 // Service defines the case specific parameters
@@ -35,6 +38,7 @@ type Service struct {
 
 // Serve opens the service
 func Serve(serviceVars Service) error {
+	partners = getPartners()
 	service = serviceVars
 	if service.Name == "" {
 		return errors.New("A service name must be provided")
@@ -49,7 +53,7 @@ func Serve(serviceVars Service) error {
 	c = session.DB(service.Name).C("master")
 
 	http.HandleFunc("/in", in)
-	// http.HandleFunc("/forward", forward)
+	http.HandleFunc("/forward", forward)
 	// http.HandleFunc("/back", back)
 	fmt.Println("Serving on port:", service.Port)
 	return http.ListenAndServe(":"+service.Port, nil)
@@ -72,13 +76,44 @@ func in(w http.ResponseWriter, r *http.Request) {
 	} else {
 		check(err)
 	}
+
 	err = insert(nativeCookie.Value, partner, partnerCookie)
 	check(err)
+
+	if service.Redirect != "" && service.Redirect != partner {
+		var res bson.M
+		c.FindId(nativeCookie.Value).One(&res)
+
+		str := partners[service.Redirect].Address + "/forward?"
+		for k, v := range res {
+			str += k + "=" + v.(string) + "&"
+		}
+		str += "back=" + service.Name
+		str = strings.Replace(str, "_id", service.Name, -1)
+		http.Redirect(w, r, str, 307)
+	}
+}
+
+func forward(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("called: forward")
+	r.ParseForm()
+	nativeCookie, err := r.Cookie(service.Name + "ID")
+	if nativeCookie == nil {
+		nativeCookie = setCookie(&w, r, "new")
+	} else {
+		check(err)
+	}
+	for _, c := range r.Cookies() {
+		fmt.Println(c.Name, c.Value)
+		err = insert(nativeCookie.Value, c.Name, c.Value)
+		check(err)
+	}
+	// str := partners[r.FormValue("back").Address] + "/back?" + service.Name + "=" + nativeCookie.Value
+	// http.Redirect(w, r, str, 307)
 }
 
 func insert(nativeID, partner, partnerCookie string) error {
 	var res bson.M
-
 	err = c.Find(bson.M{"_id": nativeID, partner: partnerCookie}).One(&res)
 	if err == nil {
 		return err
