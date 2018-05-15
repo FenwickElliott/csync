@@ -13,7 +13,6 @@ import (
 )
 
 var (
-	// db           *mgo.Database
 	c            *mgo.Collection
 	err          error
 	service      Service
@@ -47,7 +46,6 @@ func Serve(serviceVars Service) error {
 	session, err := mgo.Dial(service.MongoServer)
 	check(err)
 	defer session.Close()
-	// db = session.DB(service.Name)
 	c = session.DB(service.Name).C("master")
 
 	http.HandleFunc("/in", in)
@@ -61,14 +59,12 @@ func in(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 	partner := r.FormValue("partner")
 	partnerCookie := r.FormValue("cookie")
-	// fmt.Println(partner, partnerCookie)
 
 	nativeCookie, err := r.Cookie(service.Name + "ID")
 	if nativeCookie == nil {
 		var res bson.M
 		err = c.Find(bson.M{partner: partnerCookie}).One(&res)
 		if err == nil {
-			// set original cookie
 			nativeCookie = setCookie(&w, r, res["_id"].(string))
 		} else {
 			nativeCookie = setCookie(&w, r, "new")
