@@ -10,6 +10,9 @@ import (
 )
 
 func insert(nativeID, partner, partnerCookie string) error {
+	if partner == service.Name || partner == "back" {
+		return nil
+	}
 	var res bson.M
 	err = c.Find(bson.M{"_id": nativeID, partner: partnerCookie}).One(&res)
 	if err == nil {

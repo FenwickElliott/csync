@@ -52,8 +52,9 @@ func forward(w http.ResponseWriter, r *http.Request) {
 	} else {
 		check(err)
 	}
-	for _, c := range r.Cookies() {
-		err = insert(nativeCookie.Value, c.Name, c.Value)
+
+	for k, v := range r.Form {
+		err = insert(nativeCookie.Value, k, v[0])
 		check(err)
 	}
 
