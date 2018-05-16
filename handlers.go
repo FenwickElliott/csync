@@ -1,7 +1,9 @@
 package csync
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 
@@ -41,6 +43,26 @@ func in(w http.ResponseWriter, r *http.Request) {
 		str = strings.Replace(str, "_id", service.Name, -1)
 		http.Redirect(w, r, str, 307)
 	}
+}
+
+func out(w http.ResponseWriter, r *http.Request) {
+	r.ParseForm()
+	partner := r.FormValue("partner")
+	partnerCookie := r.FormValue("cookie")
+	if partner == service.Name {
+		partner = "_id"
+	}
+
+	var res bson.M
+	err = c.Find(bson.M{partner: partnerCookie}).One(&res)
+	if err != nil && err.Error() == "not found" {
+		io.WriteString(w, "Cookie not found\n")
+		return
+	}
+	check(err)
+
+	err := json.NewEncoder(w).Encode(res)
+	check(err)
 }
 
 func forward(w http.ResponseWriter, r *http.Request) {

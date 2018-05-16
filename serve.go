@@ -48,6 +48,7 @@ func Serve(serviceVars Service) error {
 	c = session.DB(service.Name).C("master")
 
 	http.HandleFunc("/in", in)
+	http.HandleFunc("/out", out)
 	http.HandleFunc("/forward", forward)
 	http.HandleFunc("/back", back)
 	fmt.Println("Serving:", service.Name, "on port:", service.Port)
